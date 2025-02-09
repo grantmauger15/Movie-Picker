@@ -98,8 +98,9 @@ if args.command == "get":
         movie_choices = movie_choices.query(conditions)
 
     if args.top100:
+        movie_choices['Decade_Rank'] = pd.to_numeric(movie_choices['Decade_Rank'], errors='coerce').fillna(-1)
         movie_choices['Decade_Rank'] = movie_choices['Decade_Rank'].astype(int)
-        movie_choices = movie_choices.query('Decade_Rank <= 100')
+        movie_choices = movie_choices.query('Decade_Rank <= 100 & Decade_Rank > 0')
 
     if args.director:
         director_args = [arg.strip() for arg in args.director.split(',')]
