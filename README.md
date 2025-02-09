@@ -62,7 +62,7 @@ movie list
 ```bash
 Marnie (1964) | 2025-02-09 14:25:12.850030
 Citizen Kane (1941) | 2025-02-09 14:25:27.393905
-Singin' in the Rain (1952) | 2025-02-09 14:25:41.197356
+The Sound of Music (1965) | 2025-02-09 14:40:18.883370
 ```
 - The above is one possible output of the "movie list" command.
 ```bash
