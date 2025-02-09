@@ -21,7 +21,7 @@ parser = argparse.ArgumentParser(description='Movie management tool.')
 subparsers = parser.add_subparsers(dest="command", help='Available commands')
 
 get_parser = subparsers.add_parser("get", help='Retrieve a random movie based on filters.')
-get_parser.add_argument('-r', '--ranking', type=int, help='Provide ranking requirements for your selection (e.g. 1000-, 50-100, 42).')
+get_parser.add_argument('-r', '--rank', type=str, help='Provide rank requirements for your selection (e.g. 1000-, 50-100, 42).')
 get_parser.add_argument('-t100', '--top100', action='store_true', help='Limit selection to movies in the top 100 of its decade.')
 get_parser.add_argument('-d', '--director', type=str, help='Provide a director or a list of directors whose movies you want to select from (e.g. "Steven Spielberg", "Hitchcock").')
 get_parser.add_argument('-rt', '--runtime', type=str, help='Provide movie runtime requirements for your selection (e.g. 90-120, 90+, 60-).')
@@ -71,24 +71,25 @@ def getRuntime(m):
 if args.command == "get":
     movie_choices = movies
 
-    if args.ranking:
-        ranking_args = [arg.strip() for arg in args.ranking.split(',')]
+    if args.rank:
+        rank_args = [arg.strip() for arg in args.rank.split(',')]
         conditions = []
 
-        for arg in ranking_args:
+        for arg in rank_args:
             if range := re.fullmatch(r'(\d+)-(\d+)', arg):
                 start, end = range.group(1), range.group(2)
-                conditions.append(f"Ranking >= {start} & Ranking <= {end}")
+                conditions.append(f"Rank >= {start} & Rank <= {end}")
             elif re.fullmatch(r'\d+[\-+]', arg):
-                ranking = int(arg[:-1])
+                rank = int(arg[:-1])
                 if arg[-1] == '-':
-                    conditions.append(f"Ranking <= {ranking} & Ranking >= 0")
+                    conditions.append(f"Rank <= {rank} & Rank >= 0")
                 if arg[-1] == '+':
-                    conditions.append(f"Ranking >= {ranking} & Ranking >= 0")
+                    conditions.append(f"Rank >= {rank} & Rank >= 0")
             elif re.fullmatch(r'\d+', arg):
-                conditions.append(f"Ranking == {ranking}")
+                rank = int(arg)
+                conditions.append(f"Rank == {rank}")
             else:
-                print("The ranking flag takes either ranking ranges, like 50-100 or 1000-, or ranking numbers like 42. Please try again.")
+                print("The rank flag takes either rank ranges, like 50-100 or 1000-, or ranking numbers like 42. Please try again.")
                 quit()
 
         conditions = " | ".join(conditions)
