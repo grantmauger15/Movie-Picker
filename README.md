@@ -3,7 +3,7 @@ A simple command-line tool (CLI) to randomly pick movies based on a variety of f
 
 ## Features
 - Retrieve a random movie with the option to use critical ranking, director, runtime, genre, year, language, rating, cast, and much more as a filter.
-- Mark movies as listened to by removing them from the pool of albums that can be selected.
+- Mark movies as listened to by removing them from the pool of movies that can be selected.
 - List all movies that are removed from the selection pool.
 ## Installation
 ### 1) Download the repository using CMD
@@ -25,7 +25,6 @@ movie get -r 1000- -d "hitchcock" -y 1960-1965,1950- -rt 120+
 ```
 - The above command will fetch a movie directed by Alfred Hitchcock between 1960 and 1965, or from 1950 and before. Movie runtime must also be at least 2 hours.
 - The movie must also be in the top 1000 most critically acclaimed movies of all time (as sourced from [this list](https://www.theyshootpictures.com/gf1000_startinglist_table.php)).
-- Only the top 3000 albums of all time are ranked, so making the number greater than 3000 is pointless and will not include more albums.
 ```bash
 Movie: Marnie (rating: 7.1, votes: 55739, rank: 367) [2 total]
 Director: Alfred Hitchcock
@@ -65,7 +64,7 @@ Marnie (1964) | 2025-02-09 14:25:12.850030
 Citizen Kane (1941) | 2025-02-09 14:25:27.393905
 Singin' in the Rain (1952) | 2025-02-09 14:25:41.197356
 ```
-- The above is one possible output of the "album list" command.
+- The above is one possible output of the "movie list" command.
 ```bash
 movie reset
 ```
