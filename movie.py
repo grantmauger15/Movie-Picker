@@ -53,6 +53,25 @@ reset_parser = subparsers.add_parser("reset", help='Reset the pool of movies to 
 movies = pd.read_csv(csv_path)
 args = parser.parse_args()
 
+def getConditional(command, column):
+    comm = [command.split(',') for command in command.split(';')]
+
+    for i in range(len(comm)):
+        for j in range(len(comm[i])):
+            c = comm[i][j].strip()
+
+            if c.startswith('!'):
+                comm[i][j] = f"~{column}.str.contains('{c[1:]}', case=False, na=False)"
+            else:
+                comm[i][j] = f"{column}.str.contains('{c}', case=False, na=False)"
+
+    for i in range(len(comm)):
+        comm[i] = " & ".join(comm[i])
+
+    comm = " | ".join(comm)
+
+    return comm
+
 def starring(cast):
     if len(cast) > 1:
         return re.match(r'^[^,]+,?(?:[^,]+)?,?(?:[^,]+)?,?(?:[^,]+)?,?(?:[^,]+)?', cast).group()
@@ -76,8 +95,8 @@ if args.command == "get":
         conditions = []
 
         for arg in rank_args:
-            if range := re.fullmatch(r'(\d+)-(\d+)', arg):
-                start, end = range.group(1), range.group(2)
+            if rng := re.fullmatch(r'(\d+)-(\d+)', arg):
+                start, end = rng.group(1), rng.group(2)
                 conditions.append(f"Rank >= {start} & Rank <= {end}")
             elif re.fullmatch(r'\d+[\-+]', arg):
                 rank = int(arg[:-1])
@@ -93,8 +112,8 @@ if args.command == "get":
                 quit()
 
         conditions = " | ".join(conditions)
-        movie_choices['Votes'] = pd.to_numeric(movie_choices['Votes'], errors='coerce').fillna(-1)
-        movie_choices['Votes'] = movie_choices['Votes'].astype(int)
+        movie_choices['Rank'] = pd.to_numeric(movie_choices['Rank'], errors='coerce').fillna(-1)
+        movie_choices['Rank'] = movie_choices['Rank'].astype(int)
         movie_choices = movie_choices.query(conditions)
 
     if args.top100:
@@ -103,14 +122,7 @@ if args.command == "get":
         movie_choices = movie_choices.query('Decade_Rank <= 100 & Decade_Rank > 0')
 
     if args.director:
-        director_args = [arg.strip() for arg in args.director.split(',')]
-        conditions = []
-
-        for arg in director_args:
-            conditions.append(f"Director.str.contains('{arg}', case=False, na=False)")
-            
-        conditions = " | ".join(conditions)
-        movie_choices = movie_choices.query(conditions)
+        movie_choices = movie_choices.query(getConditional(args.director, "Director"))
 
     if args.runtime:
         runtime_args = [arg.strip() for arg in args.runtime.split(',')]
@@ -123,8 +135,8 @@ if args.command == "get":
                     conditions.append(f'Runtime <= {runtime} & Runtime > 0')
                 elif arg[-1] == '+':
                     conditions.append(f'Runtime >= {runtime} & Runtime > 0')
-            elif range := re.fullmatch(r'(\d+)-(\d+)', arg):
-                start, end = range.group(1), range.group(2)
+            elif rng := re.fullmatch(r'(\d+)-(\d+)', arg):
+                start, end = rng.group(1), rng.group(2)
                 conditions.append(f'Runtime >= {start} & Runtime <= {end}')
             elif re.fullmatch(r'\d+', arg):
                 conditions.append(f'Runtime == {arg}')
@@ -138,14 +150,7 @@ if args.command == "get":
         movie_choices = movie_choices.query(conditions)
 
     if args.genre:
-        genre_args = [arg.strip() for arg in args.genre.split(',')]
-        conditions = []
-
-        for arg in genre_args:
-            conditions.append(f"Genre.str.contains('{arg}', case=False, na=False)")
-            
-        conditions = " | ".join(conditions)
-        movie_choices = movie_choices.query(conditions)
+        movie_choices = movie_choices.query(getConditional(args.genre, "Genre"))
 
     if args.year:
         year_args = [arg.strip() for arg in args.year.split(',')]
@@ -154,8 +159,8 @@ if args.command == "get":
         for arg in year_args:
             if re.fullmatch(r'\d{4}s', arg):
                 conditions.append(f"Decade == '{arg}'")
-            elif range := re.fullmatch(r'(\d{4})-(\d{4})', arg):
-                start, end = range.group(1), range.group(2)
+            elif rng := re.fullmatch(r'(\d{4})-(\d{4})', arg):
+                start, end = rng.group(1), rng.group(2)
                 conditions.append(f"Year >= {start} & Year <= {end}")
             elif re.fullmatch(r'\d{4}', arg):
                 conditions.append(f"Year == {arg}")
@@ -174,24 +179,10 @@ if args.command == "get":
         movie_choices = movie_choices.query(conditions)
     
     if args.country:
-        country_args = [arg.strip() for arg in args.country.split(',')]
-        conditions = []
-
-        for arg in country_args:
-            conditions.append(f"Country.str.contains('{arg}', case=False, na=False)")
-            
-        conditions = " | ".join(conditions)
-        movie_choices = movie_choices.query(conditions)
+        movie_choices = movie_choices.query(getConditional(args.country, "Country"))
 
     if args.language:
-        language_args = [arg.strip() for arg in args.language.split(',')]
-        conditions = []
-
-        for arg in language_args:
-            conditions.append(f"Language.str.contains('{arg}', case=False, na=False)")
-            
-        conditions = " | ".join(conditions)
-        movie_choices = movie_choices.query(conditions)
+        movie_choices = movie_choices.query(getConditional(args.language, "Language"))
     
     if args.color is not None:
         if args.color == 0:
@@ -216,8 +207,8 @@ if args.command == "get":
         conditions = []
 
         for arg in rating_args:
-            if range := re.fullmatch(r'(\d\.\d)-(\d\.\d)', arg):
-                start, end = range.group(1), range.group(2)
+            if rng := re.fullmatch(r'(\d\.\d)-(\d\.\d)', arg):
+                start, end = rng.group(1), rng.group(2)
                 conditions.append(f"Rating >= {start} & Rating <= {end}")
             elif re.fullmatch(r'\d(?:\.\d)?[\-+]', arg):
                 rating = float(arg[:-1])
@@ -240,8 +231,8 @@ if args.command == "get":
         conditions = []
 
         for arg in votes_args:
-            if range := re.fullmatch(r'(\d+)-(\d+)', arg):
-                start, end = range.group(1), range.group(2)
+            if rng := re.fullmatch(r'(\d+)-(\d+)', arg):
+                start, end = rng.group(1), rng.group(2)
                 conditions.append(f"Votes >= {start} & Votes <= {end}")
             elif re.fullmatch(r'\d+[\-+]', arg):
                 votes = int(arg[:-1])
@@ -261,84 +252,28 @@ if args.command == "get":
         movie_choices = movie_choices.query(conditions)
 
     if args.actor:
-        actor_args = [arg.strip() for arg in args.actor.split(',')]
-        conditions = []
-
-        for arg in actor_args:
-            conditions.append(f"Cast.str.contains('{arg}', case=False, na=False)")
-            
-        conditions = " | ".join(conditions)
-        movie_choices = movie_choices.query(conditions)
+        movie_choices = movie_choices.query(getConditional(args.actor, "Cast"))
 
     if args.writer:
-        writer_args = [arg.strip() for arg in args.writer.split(',')]
-        conditions = []
-
-        for arg in writer_args:
-            conditions.append(f"Writer.str.contains('{arg}', case=False, na=False)")
-            
-        conditions = " | ".join(conditions)
-        movie_choices = movie_choices.query(conditions)
+        movie_choices = movie_choices.query(getConditional(args.writer, "Writer"))
 
     if args.producer:
-        producer_args = [arg.strip() for arg in args.producer.split(',')]
-        conditions = []
-
-        for arg in producer_args:
-            conditions.append(f"Producer.str.contains('{arg}', case=False, na=False)")
-            
-        conditions = " | ".join(conditions)
-        movie_choices = movie_choices.query(conditions)
+        movie_choices = movie_choices.query(getConditional(args.producer, "Producer"))
 
     if args.cinematographer:
-        cinematographer_args = [arg.strip() for arg in args.cinematographer.split(',')]
-        conditions = []
-
-        for arg in cinematographer_args:
-            conditions.append(f"Cinematographer.str.contains('{arg}', case=False, na=False)")
-            
-        conditions = " | ".join(conditions)
-        movie_choices = movie_choices.query(conditions)
+        movie_choices = movie_choices.query(getConditional(args.cinematographer, "Cinematographer"))
 
     if args.editor:
-        editor_args = [arg.strip() for arg in args.editor.split(',')]
-        conditions = []
-
-        for arg in editor_args:
-            conditions.append(f"Editor.str.contains('{arg}', case=False, na=False)")
-            
-        conditions = " | ".join(conditions)
-        movie_choices = movie_choices.query(conditions)
+        movie_choices = movie_choices.query(getConditional(args.editor, "Editor"))
 
     if args.composer:
-        composer_args = [arg.strip() for arg in args.composer.split(',')]
-        conditions = []
-
-        for arg in composer_args:
-            conditions.append(f"Composer.str.contains('{arg}', case=False, na=False)")
-            
-        conditions = " | ".join(conditions)
-        movie_choices = movie_choices.query(conditions)
+        movie_choices = movie_choices.query(getConditional(args.composer, "Composer"))
 
     if args.production_company:
-        production_company_args = [arg.strip() for arg in args.production_company.split(',')]
-        conditions = []
-
-        for arg in production_company_args:
-            conditions.append(f"Production_Company.str.contains('{arg}', case=False, na=False)")
-            
-        conditions = " | ".join(conditions)
-        movie_choices = movie_choices.query(conditions)
+        movie_choices = movie_choices.query(getConditional(args.production_company, "Production_Company"))
 
     if args.plot:
-        plot_args = [arg for arg in args.plot.split(',')]
-        conditions = []
-
-        for arg in plot_args:
-            conditions.append(f"Plot.str.contains('{arg}', case=False, na=False)")
-            
-        conditions = " | ".join(conditions)
-        movie_choices = movie_choices.query(conditions)
+        movie_choices = movie_choices.query(getConditional(args.plot, "Plot"))
 
     movie_choices_pool = movie_choices.query('In_Pool == "Y"')
     if movie_choices_pool.empty:
