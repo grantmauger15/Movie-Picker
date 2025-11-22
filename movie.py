@@ -42,6 +42,8 @@ get_parser.add_argument('-com', '--composer', type=str, help='Provide a composer
 get_parser.add_argument('-pc', '--production_company', type=str, help='Provide a production company or a list of production companies that you want to limit your selected movies to (e.g. "Marvel Studios", "Paramount Pictures, Metro-Goldwyn-Mayer").')
 get_parser.add_argument('-pl', '--plot', type=str, help='Provide a string of text to match against movie plot summaries. For example, putting "ghost" will likely select ghost movies, and putting "affair" will likely select movies involving romantic affairs.')
 get_parser.add_argument('-c', '--count', type=str, help='Provide a number of movies that you want to receive. If you want every movie that follows your requirements, put all.')
+get_parser.add_argument('-m', '--minimal', action='store_true', help='Limit the output to only the title and year of release.')
+
 
 remove_parser = subparsers.add_parser("remove", help='Remove a movie from the pool given its ID.')
 remove_parser.add_argument('movie_id', type=int, help='Remove a movie from the selection pool by providing the ID of the movie.')
@@ -186,18 +188,18 @@ if args.command == "get":
     
     if args.color is not None:
         if args.color == 0:
-            movie_choices = movie_choices.query('Color == "False"')
+            movie_choices = movie_choices.query('Color == "FALSE"')
         elif args.color == 1:
-            movie_choices = movie_choices.query('Color == "True"')
+            movie_choices = movie_choices.query('Color == "TRUE"')
         else:
             print("The color flag only takes 1 or 0 as arguments. Please try again.")
             quit()
 
     if args.silent is not None:
         if args.silent == 0:
-            movie_choices = movie_choices.query('Silent == "False"')
+            movie_choices = movie_choices.query('Silent == "FALSE"')
         elif args.silent == 1:
-            movie_choices = movie_choices.query('Silent == "True"')
+            movie_choices = movie_choices.query('Silent == "TRUE"')
         else:
             print("The silent flag only takes 1 or 0 as arguments. Please try again.")
             quit()
@@ -299,7 +301,10 @@ if args.command == "get":
             choices = movie_choices_pool.sample()
 
         for _, choice in choices.iterrows():
-            movies.append(f"Movie: {choice['Title']} (rating: {choice['Rating']}, votes: {choice['Votes']}, rank: {choice['Rank']}) [{len(movie_choices_pool)} total]\nDirector: {choice['Director']}\nYear: {choice['Year']}\nRuntime: {getRuntime(choice['Runtime'])}\nGenre: {choice['Genre']}\nStarring: {starring(choice['Cast'])}\nLanguage: {choice['Language']}\nPlot: {choice['Plot']}\nID: {choice['ID']}")
+            if args.minimal:
+                movies.append(f"Movie: {choice['Title']} ({choice['Year']})")
+            else:
+                movies.append(f"Movie: {choice['Title']} (rating: {choice['Rating']}, votes: {choice['Votes']}, rank: {choice['Rank']}) [{len(movie_choices_pool)} total]\nDirector: {choice['Director']}\nYear: {choice['Year']}\nRuntime: {getRuntime(choice['Runtime'])}\nGenre: {choice['Genre']}\nStarring: {starring(choice['Cast'])}\nLanguage: {choice['Language']}\nPlot: {choice['Plot']}\nID: {choice['ID']}")
         
         print("\033[34m-------------------------\033[0m\n" + "\n\033[31m-------------------------\033[0m\n".join(movies) + "\n\033[34m-------------------------\033[0m")
 
