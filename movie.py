@@ -89,8 +89,15 @@ def getRuntime(m):
 
     return f'{h}h {m}m'
 
+
+#DEBUGGING
+
+
 if args.command == "get":
     movie_choices = movies #dictionary
+    #this gets updated when we loop through the commands.
+    #we essentially thin it out until we have what the user requested.
+    
 
     if args.rank:
         rank_args = [arg.strip() for arg in args.rank.split(',')]
@@ -114,9 +121,10 @@ if args.command == "get":
                 quit()
 
         conditions = " | ".join(conditions)
+        movie_choices['Rank']
         movie_choices['Rank'] = pd.to_numeric(movie_choices['Rank'], errors='coerce').fillna(-1)
         movie_choices['Rank'] = movie_choices['Rank'].astype(int)
-        movie_choices = movie_choices.query(conditions)
+        movie_choices = movie_choices.query(conditions) #filters the movies down to the rank (100-200) in the movie_choices. for example it went from 25k to 100 now.
 
     if args.top100:
         movie_choices['Decade_Rank'] = pd.to_numeric(movie_choices['Decade_Rank'], errors='coerce').fillna(-1)
