@@ -99,21 +99,111 @@ def format_runtime(minutes):
     return f'{hours}h {mins}m'
 
 
+def get_rating_color(rating):
+    """Get color code for rating (green for high, yellow for medium, red for low)"""
+    try:
+        rating = float(rating)
+        # if rating >= 8.0:
+        #     return '\033[92m'  # Bright green
+        # elif rating >= 7.0:
+        #     return '\033[93m'  # Yellow
+        # elif rating >= 6.0:
+        #     return '\033[33m'  # Orange
+        # else:
+        #     return '\033[91m'  # Red
+        return '\033[93m' #yellow
+    except:
+        return '\033[37m'  # White for invalid
+
+
+def get_rank_color(rank):
+    """Get color code for rank (green for top ranks, fading to red)"""
+    try:
+        rank = int(rank)
+        if rank <= 100:
+            return '\033[92m'  # Bright green
+        elif rank <= 500:
+            return '\033[93m'  # Yellow
+        elif rank <= 1000:
+            return '\033[33m'  # Orange
+        else:
+            return '\033[37m'  # White
+    except:
+        return '\033[37m'  # White
+
+
+def get_runtime_color(runtime):
+    """Get color code for runtime (green for ideal length)"""
+    try:
+        runtime = int(runtime)
+        if 90 <= runtime <= 120:
+            return '\033[92m'  # Bright green (ideal)
+        elif 120 < runtime <= 150:
+            return '\033[93m'  # Yellow (long)
+        elif runtime > 150 or runtime < 90:
+            return '\033[33m'  # Orange (very long or short)
+        else:
+            return '\033[37m'  # White
+    except:
+        return '\033[37m'
+
+
+def format_votes(votes):
+    """Format vote count with color and thousands separator"""
+    try:
+        votes = int(votes)
+        if votes >= 1000000:
+            return f'\033[95m{votes:,}\033[0m'  # Magenta for 1M+
+        elif votes >= 500000:
+            return f'\033[96m{votes:,}\033[0m'  # Cyan for 500K+
+        elif votes >= 100000:
+            return f'\033[94m{votes:,}\033[0m'  # Blue for 100K+
+        else:
+            return f'\033[37m{votes:,}\033[0m'  # White
+    except:
+        return f'\033[37m{votes}\033[0m'
+
+
+def get_rank_badge(rank):
+    """Get special badge for top-ranked movies"""
+    try:
+        rank = int(rank)
+        if rank <= 10:
+            return ' \033[1;93m[TOP 10]\033[0m'
+        elif rank <= 50:
+            return ' \033[93m[TOP 50]\033[0m'
+        elif rank <= 100:
+            return ' \033[90m[TOP 100]\033[0m'
+        else:
+            return ''
+    except:
+        return ''
+
+
 def format_movie_output(choice, minimal=False, pool_size=0):
-    """Format a movie's information for display"""
+    """Format a movie's information for display with colors"""
     if minimal:
-        return f"Movie: {choice['Title']} ({choice['Year']})"
+        return f"\033[96m{choice['Title']}\033[0m \033[90m({choice['Year']})\033[0m"
     else:
-        return (f"Movie: {choice['Title']} (rating: {choice['Rating']}, "
-                f"votes: {choice['Votes']}, rank: {choice['Rank']}) [{pool_size} total]\n"
-                f"Director: {choice['Director']}\n"
-                f"Year: {choice['Year']}\n"
-                f"Runtime: {format_runtime(choice['Runtime'])}\n"
-                f"Genre: {choice['Genre']}\n"
-                f"Starring: {get_top_cast_members(choice['Cast'])}\n"
-                f"Language: {choice['Language']}\n"
-                f"Plot: {choice['Plot']}\n"
-                f"ID: {choice['ID']}")
+        rating_color = get_rating_color(choice['Rating'])
+        rank_color = get_rank_color(choice['Rank'])
+        rank_badge = get_rank_badge(choice['Rank'])
+        runtime_color = get_runtime_color(choice['Runtime'])
+        votes_formatted = format_votes(choice['Votes'])
+        title = choice['Title'].upper()
+        
+        return (f"\n\033[1;97m{title}\033[0m \033[90m({choice['Year']})\033[0m{rank_badge}\n"
+                f"{rating_color}★ {choice['Rating']}\033[0m  │  "
+                f"{votes_formatted} votes  │  "
+                f"Rank: {rank_color}#{choice['Rank']}\033[0m  │  "
+                f"\033[36m{pool_size} in pool\033[0m\n\n"
+                f"\033[90mDirector\033[0m     {choice['Director']}\n"
+                f"\033[90mRuntime\033[0m      {runtime_color}{format_runtime(choice['Runtime'])}\033[0m  │  "
+                f"\033[90mLanguage:\033[0m {choice['Language']}\n"
+                f"\033[90mGenre\033[0m        {choice['Genre']}\n"
+                f"\033[90mStarring\033[0m     {get_top_cast_members(choice['Cast'])}\n\n"
+                f"\033[90m{choice['Plot']}\033[0m\n\n"
+                f"\033[90mID: {choice['ID']}\033[0m")
 
 
 def parse_numeric_range(arg_string, column_name, allow_decimal=False):
@@ -333,9 +423,18 @@ if args.command == "get":
         for _, choice in choices.iterrows():
             movie_results.append(format_movie_output(choice, minimal=args.minimal, pool_size=len(movie_choices_pool)))
         
-        print("\033[34m-------------------------\033[0m\n" + 
-              "\n\033[31m-------------------------\033[0m\n".join(movie_results) + 
-              "\n\033[34m-------------------------\033[0m")
+        # Print header
+        result_count = len(movie_results)
+        if result_count == 1:
+            header = "Found 1 movie matching your criteria"
+        else:
+            header = f"Found {result_count} movies matching your criteria"
+        
+        print(f"\n\033[1;36m{'═' * 80}\033[0m")
+        print(f"\033[1;36m  {header}\033[0m")
+        print(f"\033[1;36m{'═' * 80}\033[0m")
+        print("\n".join(movie_results))
+        print(f"\n\033[90m{'─' * 80}\033[0m\n")
 
 elif args.command == "remove":
     if args.movie_id in movies["ID"].values:
