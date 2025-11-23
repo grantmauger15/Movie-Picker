@@ -1,34 +1,20 @@
 @echo off
-echo Adding the current directory to the PATH...
+echo Adding current directory to global PATH...
 
-:: Get the current directory
-set CURRENT_DIR=%cd%
+set "CURRENT_DIR=%cd%"
 
-:: Get the current PATH from the registry
-for /f "tokens=* delims=" %%A in ('reg query "HKCU\Environment" /v PATH 2^>nul') do (
-    set "CURRENT_PATH=%%A"
+:: Check if already in PATH
+echo %PATH% | find "%CURRENT_DIR%" >nul
+if %errorlevel%==0 (
+    echo Already in PATH.
+    goto :done
 )
 
-:: Extract only the actual PATH value from the registry query result
-for /f "tokens=2,* delims=    " %%A in ("%CURRENT_PATH%") do (
-    set "CURRENT_PATH=%%B"
-)
+:: Append to PATH globally
+setx PATH "%PATH%;%CURRENT_DIR%"
 
-:: Check if the current directory is already in PATH
-echo %CURRENT_PATH% | find "%CURRENT_DIR%" >nul
-if %errorlevel% equ 0 (
-    echo The current directory is already in PATH.
-    goto :END
-)
+echo Added: %CURRENT_DIR%
+echo (Restart CMD or your PC for changes to apply.)
 
-:: Append the current directory to the PATH
-set NEW_PATH=%CURRENT_PATH%;%CURRENT_DIR%
-
-:: Update the PATH in the registry
-reg add "HKCU\Environment" /v PATH /t REG_SZ /d "%NEW_PATH%" /f
-
-echo Successfully added %CURRENT_DIR% to PATH.
-
-:END
-echo Installation complete! You can now use the 'movie' command.
+:done
 pause

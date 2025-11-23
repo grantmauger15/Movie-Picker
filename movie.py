@@ -90,7 +90,7 @@ def getRuntime(m):
     return f'{h}h {m}m'
 
 if args.command == "get":
-    movie_choices = movies
+    movie_choices = movies #dictionary
 
     if args.rank:
         rank_args = [arg.strip() for arg in args.rank.split(',')]
