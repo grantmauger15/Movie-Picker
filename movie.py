@@ -152,7 +152,7 @@ def get_rank_badge(rank):
         return ''
 
 
-def format_movie_output(choice, minimal=False, pool_size=0):
+def format_movie_output(choice, minimal=False, pool_size=0, is_single=False):
     """Format a movie's information for display"""
     if minimal:
         return f"{choice['Title']} \033[90m({choice['Year']})\033[0m"
@@ -162,16 +162,17 @@ def format_movie_output(choice, minimal=False, pool_size=0):
         rank_badge = get_rank_badge(choice['Rank'])
         votes_formatted = format_votes(choice['Votes'])
         
-        separator = "\033[90m│\033[0m"
-        return (f"\n\033[1m{choice['Title']}\033[0m \033[90m({choice['Year']})\033[0m{rank_badge}\n"
-                f"{rating_color}{choice['Rating']}\033[0m  "
-                f"{separator}  {votes_formatted} votes  "
-                f"{separator}  Rank {rank_color}#{choice['Rank']}\033[0m  "
-                f"{separator}  {pool_size} in pool\n"
-                f"{choice['Director']}  {separator}  {format_runtime(choice['Runtime'])}  "
-                f"{separator}  {choice['Genre']}\n"
-                f"\033[90m{get_top_cast_members(choice['Cast'])}\033[0m\n"
-                f"\033[2m{choice['Plot']}\033[0m")
+        bottom_separator = f"\n\033[90m{'─' * 60}\033[0m" if is_single else ""
+        
+        return (f"\n\033[90m{'─' * 60}\033[0m\n"
+                f"\033[90mMovie:\033[0m \033[1m{choice['Title']}\033[0m \033[90m({choice['Year']})\033[0m{rank_badge} ({rating_color}{choice['Rating']}\033[0m, {votes_formatted} votes, Rank {rank_color}#{choice['Rank']}\033[0m) [{pool_size} total]\n"
+                f"\033[90mDirector:\033[0m {choice['Director']}\n"
+                f"\033[90mGenre:\033[0m {choice['Genre']}\n"
+                f"\033[90mRuntime:\033[0m {format_runtime(choice['Runtime'])}\n"
+                f"\033[90mStarring:\033[0m {get_top_cast_members(choice['Cast'])}\n"
+                f"\033[90mPlot:\033[0m {choice['Plot']}\n"
+                f"\033[90mID:\033[0m {choice['ID']}"
+                f"{bottom_separator}")
 
 
 def parse_numeric_range(arg_string, column_name, allow_decimal=False):
@@ -387,8 +388,9 @@ if args.command == "get":
             choices = movie_choices_pool.sample()
 
         # Format and display results
+        is_single_movie = len(choices) == 1
         for _, choice in choices.iterrows():
-            print(format_movie_output(choice, minimal=args.minimal, pool_size=len(movie_choices_pool)))
+            print(format_movie_output(choice, minimal=args.minimal, pool_size=len(movie_choices_pool), is_single=is_single_movie))
         
         print()  # Single blank line at end
 
