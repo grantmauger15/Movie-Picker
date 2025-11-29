@@ -1,3 +1,2 @@
 @echo off
-python .\movie.py %*
-
+python "%~dp0movie.py" %*
