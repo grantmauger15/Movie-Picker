@@ -152,7 +152,7 @@ def get_rank_badge(rank):
         return ''
 
 
-def format_movie_output(choice, minimal=False, pool_size=0, is_single=False):
+def format_movie_output(choice, minimal=False, pool_size=0, is_last=False):
     """Format a movie's information for display"""
     if minimal:
         return f"{choice['Title']} \033[90m({choice['Year']})\033[0m"
@@ -162,7 +162,7 @@ def format_movie_output(choice, minimal=False, pool_size=0, is_single=False):
         rank_badge = get_rank_badge(choice['Rank'])
         votes_formatted = format_votes(choice['Votes'])
         
-        bottom_separator = f"\n\033[90m{'─' * 60}\033[0m" if is_single else ""
+        bottom_separator = f"\n\033[90m{'─' * 60}\033[0m" if is_last else ""
         
         return (f"\n\033[90m{'─' * 60}\033[0m\n"
                 f"\033[90mMovie:\033[0m \033[1m{choice['Title']}\033[0m \033[90m({choice['Year']})\033[0m{rank_badge} ({rating_color}{choice['Rating']}\033[0m, {votes_formatted} votes, Rank {rank_color}#{choice['Rank']}\033[0m) [{pool_size} total]\n"
@@ -388,9 +388,10 @@ if args.command == "get":
             choices = movie_choices_pool.sample()
 
         # Format and display results
-        is_single_movie = len(choices) == 1
-        for _, choice in choices.iterrows():
-            print(format_movie_output(choice, minimal=args.minimal, pool_size=len(movie_choices_pool), is_single=is_single_movie))
+        choices_list = list(choices.iterrows())
+        for idx, (_, choice) in enumerate(choices_list):
+            is_last = (idx == len(choices_list) - 1)
+            print(format_movie_output(choice, minimal=args.minimal, pool_size=len(movie_choices_pool), is_last=is_last))
         
         print()  # Single blank line at end
 
