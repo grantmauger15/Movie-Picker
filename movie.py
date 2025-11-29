@@ -9,6 +9,7 @@ import warnings
 warnings.simplefilter(action='ignore', category=pd.errors.SettingWithCopyWarning)
 
 def get_csv_path():
+    """Get the path to movies.csv, handling both script and frozen exe contexts"""
     if getattr(sys, 'frozen', False):
         return os.path.join(os.path.dirname(sys.executable), 'movies.csv')
     else:
@@ -44,7 +45,6 @@ get_parser.add_argument('-pl', '--plot', type=str, help='Provide a string of tex
 get_parser.add_argument('-c', '--count', type=str, help='Provide a number of movies that you want to receive. If you want every movie that follows your requirements, put all.')
 get_parser.add_argument('-m', '--minimal', action='store_true', help='Limit the output to only the title and year of release.')
 
-
 remove_parser = subparsers.add_parser("remove", help='Remove a movie from the pool given its ID.')
 remove_parser.add_argument('movie_id', type=int, help='Remove a movie from the selection pool by providing the ID of the movie.')
 
@@ -55,7 +55,13 @@ reset_parser = subparsers.add_parser("reset", help='Reset the pool of movies to 
 movies = pd.read_csv(csv_path)
 args = parser.parse_args()
 
-def getConditional(command, column):
+
+def build_text_filter_query(command, column):
+    """
+    Build a pandas query string for text-based filtering with AND/OR logic.
+    Supports: comma for AND, semicolon for OR, ! for negation
+    Example: "Nolan, Zimmer; Spielberg" = (Nolan AND Zimmer) OR Spielberg
+    """
     comm = [command.split(',') for command in command.split(';')]
 
     for i in range(len(comm)):
@@ -74,224 +80,336 @@ def getConditional(command, column):
 
     return comm
 
-def starring(cast):
+
+def get_top_cast_members(cast):
+    """Extract up to 5 top-billed cast members from the cast string"""
     if len(cast) > 1:
         return re.match(r'^[^,]+,?(?:[^,]+)?,?(?:[^,]+)?,?(?:[^,]+)?,?(?:[^,]+)?', cast).group()
     else:
         return '-'
     
-def getRuntime(m):
-    if m == '-':
+
+def format_runtime(minutes):
+    """Convert minutes to 'Xh Ym' format"""
+    if minutes == '-':
         return '-'
-    m = int(m)
-    h = m // 60
-    m = m % 60
+    minutes = int(minutes)
+    hours = minutes // 60
+    mins = minutes % 60
+    return f'{hours}h {mins}m'
 
-    return f'{h}h {m}m'
 
+def get_rating_color(rating):
+    """Get color code for rating (green for high, yellow for medium, red for low)"""
+    try:
+        rating = float(rating)
+        # if rating >= 8.0:
+        #     return '\033[92m'  # Bright green
+        # elif rating >= 7.0:
+        #     return '\033[93m'  # Yellow
+        # elif rating >= 6.0:
+        #     return '\033[33m'  # Orange
+        # else:
+        #     return '\033[91m'  # Red
+        return '\033[93m' #yellow
+    except:
+        return '\033[37m'  # White for invalid
+
+
+def get_rank_color(rank):
+    """Get color code for rank (green for top ranks, fading to red)"""
+    try:
+        rank = int(rank)
+        if rank <= 100:
+            return '\033[92m'  # Bright green
+        elif rank <= 500:
+            return '\033[93m'  # Yellow
+        elif rank <= 1000:
+            return '\033[33m'  # Orange
+        else:
+            return '\033[37m'  # White
+    except:
+        return '\033[37m'  # White
+
+
+def get_runtime_color(runtime):
+    """Get color code for runtime (green for ideal length)"""
+    try:
+        runtime = int(runtime)
+        if 90 <= runtime <= 120:
+            return '\033[92m'  # Bright green (ideal)
+        elif 120 < runtime <= 150:
+            return '\033[93m'  # Yellow (long)
+        elif runtime > 150 or runtime < 90:
+            return '\033[33m'  # Orange (very long or short)
+        else:
+            return '\033[37m'  # White
+    except:
+        return '\033[37m'
+
+
+def format_votes(votes):
+    """Format vote count with color and thousands separator"""
+    try:
+        votes = int(votes)
+        if votes >= 1000000:
+            return f'\033[95m{votes:,}\033[0m'  # Magenta for 1M+
+        elif votes >= 500000:
+            return f'\033[96m{votes:,}\033[0m'  # Cyan for 500K+
+        elif votes >= 100000:
+            return f'\033[94m{votes:,}\033[0m'  # Blue for 100K+
+        else:
+            return f'\033[37m{votes:,}\033[0m'  # White
+    except:
+        return f'\033[37m{votes}\033[0m'
+
+
+def get_rank_badge(rank):
+    """Get special badge for top-ranked movies"""
+    try:
+        rank = int(rank)
+        if rank <= 10:
+            return ' \033[1;93m[TOP 10]\033[0m'
+        elif rank <= 50:
+            return ' \033[93m[TOP 50]\033[0m'
+        elif rank <= 100:
+            return ' \033[90m[TOP 100]\033[0m'
+        else:
+            return ''
+    except:
+        return ''
+
+
+def format_movie_output(choice, minimal=False, pool_size=0):
+    """Format a movie's information for display with colors"""
+    if minimal:
+        return f"\033[96m{choice['Title']}\033[0m \033[90m({choice['Year']})\033[0m"
+    else:
+        rating_color = get_rating_color(choice['Rating'])
+        rank_color = get_rank_color(choice['Rank'])
+        rank_badge = get_rank_badge(choice['Rank'])
+        runtime_color = get_runtime_color(choice['Runtime'])
+        votes_formatted = format_votes(choice['Votes'])
+        title = choice['Title'].upper()
+        
+        return (f"\n\033[1;97m{title}\033[0m \033[90m({choice['Year']})\033[0m{rank_badge}\n"
+                f"{rating_color}★ {choice['Rating']}\033[0m  │  "
+                f"{votes_formatted} votes  │  "
+                f"Rank: {rank_color}#{choice['Rank']}\033[0m  │  "
+                f"\033[36m{pool_size} in pool\033[0m\n\n"
+                f"\033[90mDirector\033[0m     {choice['Director']}\n"
+                f"\033[90mRuntime\033[0m      {runtime_color}{format_runtime(choice['Runtime'])}\033[0m  │  "
+                f"\033[90mLanguage:\033[0m {choice['Language']}\n"
+                f"\033[90mGenre\033[0m        {choice['Genre']}\n"
+                f"\033[90mStarring\033[0m     {get_top_cast_members(choice['Cast'])}\n\n"
+                f"\033[90m{choice['Plot']}\033[0m\n\n"
+                f"\033[90mID: {choice['ID']}\033[0m")
+
+
+def parse_numeric_range(arg_string, column_name, allow_decimal=False):
+    """
+    Parse numeric range arguments and return a pandas query string.
+    Supports: ranges (100-200), at-least (100+), at-most (100-), exact (100)
+    Returns: (query_string, error_message) - error_message is None on success
+    """
+    args = [arg.strip() for arg in arg_string.split(',')]
+    conditions = []
+    
+    if allow_decimal:
+        range_pattern = r'(\d+(?:\.\d+)?)-(\d+(?:\.\d+)?)'
+        single_pattern = r'\d+(?:\.\d+)?'
+        modifier_pattern = r'\d+(?:\.\d+)?[\-+]'
+    else:
+        range_pattern = r'(\d+)-(\d+)'
+        single_pattern = r'\d+'
+        modifier_pattern = r'\d+[\-+]'
+    
+    for arg in args:
+        if rng := re.fullmatch(range_pattern, arg):
+            start, end = rng.group(1), rng.group(2)
+            conditions.append(f"{column_name} >= {start} & {column_name} <= {end}")
+        elif re.fullmatch(modifier_pattern, arg):
+            value = float(arg[:-1]) if allow_decimal else int(arg[:-1])
+            if arg[-1] == '-':
+                conditions.append(f"{column_name} <= {value} & {column_name} >= 0")
+            elif arg[-1] == '+':
+                conditions.append(f"{column_name} >= {value} & {column_name} >= 0")
+        elif re.fullmatch(single_pattern, arg):
+            conditions.append(f"{column_name} == {arg}")
+        else:
+            return None, f"Invalid {column_name.lower()} format: '{arg}'"
+    
+    return " | ".join(conditions), None
+
+
+def parse_year_range(arg_string):
+    """
+    Parse year arguments supporting decades, ranges, exact years, and modifiers.
+    Returns: (query_string, error_message) - error_message is None on success
+    """
+    year_args = [arg.strip() for arg in arg_string.split(',')]
+    conditions = []
+
+    for arg in year_args:
+        if re.fullmatch(r'\d{4}s', arg):  # e.g., "1980s"
+            conditions.append(f"Decade == '{arg}'")
+        elif rng := re.fullmatch(r'(\d{4})-(\d{4})', arg):  # e.g., "1980-1989"
+            start, end = rng.group(1), rng.group(2)
+            conditions.append(f"Year >= {start} & Year <= {end}")
+        elif re.fullmatch(r'\d{4}[\-+]', arg):  # e.g., "2000+", "1999-"
+            year_val = arg[:-1]
+            if arg[-1] == '-':
+                conditions.append(f"Year <= {year_val}")
+            elif arg[-1] == '+':
+                conditions.append(f"Year >= {year_val}")
+        elif re.fullmatch(r'\d{4}', arg):  # e.g., "1994"
+            conditions.append(f"Year == {arg}")
+        else:
+            return None, f"Invalid year format: '{arg}'"
+    
+    return " | ".join(conditions), None
+
+
+# Main command logic
 if args.command == "get":
     movie_choices = movies
-
+    
+    # Apply rank filter
     if args.rank:
-        rank_args = [arg.strip() for arg in args.rank.split(',')]
-        conditions = []
-
-        for arg in rank_args:
-            if rng := re.fullmatch(r'(\d+)-(\d+)', arg):
-                start, end = rng.group(1), rng.group(2)
-                conditions.append(f"Rank >= {start} & Rank <= {end}")
-            elif re.fullmatch(r'\d+[\-+]', arg):
-                rank = int(arg[:-1])
-                if arg[-1] == '-':
-                    conditions.append(f"Rank <= {rank} & Rank >= 0")
-                if arg[-1] == '+':
-                    conditions.append(f"Rank >= {rank} & Rank >= 0")
-            elif re.fullmatch(r'\d+', arg):
-                rank = int(arg)
-                conditions.append(f"Rank == {rank}")
-            else:
-                print("The rank flag takes either rank ranges, like 50-100 or 1000-, or ranking numbers like 42. Please try again.")
-                quit()
-
-        conditions = " | ".join(conditions)
-        movie_choices['Rank'] = pd.to_numeric(movie_choices['Rank'], errors='coerce').fillna(-1)
-        movie_choices['Rank'] = movie_choices['Rank'].astype(int)
+        conditions, error = parse_numeric_range(args.rank, 'Rank')
+        if error:
+            print(f"{error}\nValid formats: 50-100 (range), 1000- (up to), 42+ (at least), 42 (exact)")
+            quit()
+        movie_choices['Rank'] = pd.to_numeric(movie_choices['Rank'], errors='coerce').fillna(-1).astype(int)
         movie_choices = movie_choices.query(conditions)
 
+    # Apply top 100 of decade filter
     if args.top100:
-        movie_choices['Decade_Rank'] = pd.to_numeric(movie_choices['Decade_Rank'], errors='coerce').fillna(-1)
-        movie_choices['Decade_Rank'] = movie_choices['Decade_Rank'].astype(int)
+        movie_choices['Decade_Rank'] = pd.to_numeric(movie_choices['Decade_Rank'], errors='coerce').fillna(-1).astype(int)
         movie_choices = movie_choices.query('Decade_Rank <= 100 & Decade_Rank > 0')
 
+    # Apply director filter
     if args.director:
-        movie_choices = movie_choices.query(getConditional(args.director, "Director"))
+        movie_choices = movie_choices.query(build_text_filter_query(args.director, "Director"))
 
+    # Apply runtime filter
     if args.runtime:
-        runtime_args = [arg.strip() for arg in args.runtime.split(',')]
-        conditions = []
-
-        for arg in runtime_args:
-            if re.fullmatch(r'\d+[\-+]', arg):
-                runtime = int(arg[:-1])
-                if arg[-1] == '-':
-                    conditions.append(f'Runtime <= {runtime} & Runtime > 0')
-                elif arg[-1] == '+':
-                    conditions.append(f'Runtime >= {runtime} & Runtime > 0')
-            elif rng := re.fullmatch(r'(\d+)-(\d+)', arg):
-                start, end = rng.group(1), rng.group(2)
-                conditions.append(f'Runtime >= {start} & Runtime <= {end}')
-            elif re.fullmatch(r'\d+', arg):
-                conditions.append(f'Runtime == {arg}')
-            else:
-                print("The runtime flag takes either runtime ranges, like 90-120, runtimes like 95, or 60+/60- for above and below 60 minutes. Please try again.")
-                quit()
-        
-        conditions = " | ".join(conditions)
-        movie_choices['Runtime'] = pd.to_numeric(movie_choices['Runtime'], errors='coerce').fillna(-1)
-        movie_choices['Runtime'] = movie_choices['Runtime'].astype(int)
+        conditions, error = parse_numeric_range(args.runtime, 'Runtime')
+        if error:
+            print(f"{error}\nValid formats: 90-120 (range), 60- (up to), 90+ (at least), 95 (exact)")
+            quit()
+        movie_choices['Runtime'] = pd.to_numeric(movie_choices['Runtime'], errors='coerce').fillna(-1).astype(int)
         movie_choices = movie_choices.query(conditions)
 
+    # Apply genre filter
     if args.genre:
-        movie_choices = movie_choices.query(getConditional(args.genre, "Genre"))
+        movie_choices = movie_choices.query(build_text_filter_query(args.genre, "Genre"))
 
+    # Apply year filter
     if args.year:
-        year_args = [arg.strip() for arg in args.year.split(',')]
-        conditions = []
-
-        for arg in year_args:
-            if re.fullmatch(r'\d{4}s', arg):
-                conditions.append(f"Decade == '{arg}'")
-            elif rng := re.fullmatch(r'(\d{4})-(\d{4})', arg):
-                start, end = rng.group(1), rng.group(2)
-                conditions.append(f"Year >= {start} & Year <= {end}")
-            elif re.fullmatch(r'\d{4}', arg):
-                conditions.append(f"Year == {arg}")
-            elif re.fullmatch(r'\d{4}[\-+]', arg):
-                if arg[-1] == '-':
-                    conditions.append(f"Year <= {arg[:-1]} & Year >= 0")
-                if arg[-1] == '+':
-                    conditions.append(f"Year >= {arg[:-1]} & Year >= 0")
-            else:
-                print("The year flag takes either year ranges, like 1982-1995, years like 1946, or decades like 1980s. Please try again.")
-                quit()
-        
-        conditions = " | ".join(conditions)
-        movie_choices['Year'] = pd.to_numeric(movie_choices['Year'], errors='coerce').fillna(-1)
-        movie_choices['Year'] = movie_choices['Year'].astype(int)
+        conditions, error = parse_year_range(args.year)
+        if error:
+            print(f"{error}\nValid formats: 1980s (decade), 1980-1989 (range), 1994 (exact), 2000+ (after)")
+            quit()
+        movie_choices['Year'] = pd.to_numeric(movie_choices['Year'], errors='coerce').fillna(-1).astype(int)
         movie_choices = movie_choices.query(conditions)
     
+    # Apply country filter
     if args.country:
-        movie_choices = movie_choices.query(getConditional(args.country, "Country"))
+        movie_choices = movie_choices.query(build_text_filter_query(args.country, "Country"))
 
+    # Apply language filter
     if args.language:
-        movie_choices = movie_choices.query(getConditional(args.language, "Language"))
+        movie_choices = movie_choices.query(build_text_filter_query(args.language, "Language"))
     
+    # Apply color filter
     if args.color is not None:
         if args.color == 0:
             movie_choices = movie_choices.query('Color == "FALSE"')
         elif args.color == 1:
             movie_choices = movie_choices.query('Color == "TRUE"')
         else:
-            print("The color flag only takes 1 or 0 as arguments. Please try again.")
+            print("The color flag only takes 1 (color) or 0 (black & white). Please try again.")
             quit()
 
+    # Apply silent filter
     if args.silent is not None:
         if args.silent == 0:
             movie_choices = movie_choices.query('Silent == "FALSE"')
         elif args.silent == 1:
             movie_choices = movie_choices.query('Silent == "TRUE"')
         else:
-            print("The silent flag only takes 1 or 0 as arguments. Please try again.")
+            print("The silent flag only takes 1 (silent) or 0 (non-silent). Please try again.")
             quit()
 
+    # Apply rating filter
     if args.rating:
-        rating_args = [arg.strip() for arg in args.rating.split(',')]
-        conditions = []
-
-        for arg in rating_args:
-            if rng := re.fullmatch(r'(\d\.\d)-(\d\.\d)', arg):
-                start, end = rng.group(1), rng.group(2)
-                conditions.append(f"Rating >= {start} & Rating <= {end}")
-            elif re.fullmatch(r'\d(?:\.\d)?[\-+]', arg):
-                rating = float(arg[:-1])
-                if arg[-1] == '-':
-                    conditions.append(f'Rating <= {rating} & Rating >= 0')
-                elif arg[-1] == '+':
-                    conditions.append(f'Rating >= {rating} & Rating >= 0')
-            elif re.fullmatch(r'\d\.\d', arg):
-                conditions.append(f"Rating == {arg}")
-            else:
-                print("The rating flag takes either rating ranges, like 7.4-8.2, ratings like 7.9, or 7.9+/7.9- for above and below 7.9. Please try again.")
-                quit()
-        
-        conditions = " | ".join(conditions)
+        conditions, error = parse_numeric_range(args.rating, 'Rating', allow_decimal=True)
+        if error:
+            print(f"{error}\nValid formats: 7.0-8.0 (range), 7.5- (up to), 7.9+ (at least), 7.9 (exact)")
+            quit()
         movie_choices['Rating'] = pd.to_numeric(movie_choices['Rating'], errors='coerce').fillna(-1.0)
         movie_choices = movie_choices.query(conditions)
 
+    # Apply votes filter
     if args.votes:
-        votes_args = [arg.strip() for arg in args.votes.split(',')]
-        conditions = []
-
-        for arg in votes_args:
-            if rng := re.fullmatch(r'(\d+)-(\d+)', arg):
-                start, end = rng.group(1), rng.group(2)
-                conditions.append(f"Votes >= {start} & Votes <= {end}")
-            elif re.fullmatch(r'\d+[\-+]', arg):
-                votes = int(arg[:-1])
-                if arg[-1] == '-':
-                    conditions.append(f"Votes <= {votes} & Votes >= 0")
-                if arg[-1] == '+':
-                    conditions.append(f"Votes >= {votes} & Votes >= 0")
-            elif re.fullmatch(r'\d+', arg):
-                conditions.append(f"Votes == {arg}")
-            else:
-                print("The votes flag takes either vote ranges, like 5000-15000 or 100000+, or vote numbers like 100. Please try again.")
-                quit()
-
-        conditions = " | ".join(conditions)
-        movie_choices['Votes'] = pd.to_numeric(movie_choices['Votes'], errors='coerce').fillna(-1)
-        movie_choices['Votes'] = movie_choices['Votes'].astype(int)
+        conditions, error = parse_numeric_range(args.votes, 'Votes')
+        if error:
+            print(f"{error}\nValid formats: 5000-15000 (range), 100- (up to), 100000+ (at least), 100 (exact)")
+            quit()
+        movie_choices['Votes'] = pd.to_numeric(movie_choices['Votes'], errors='coerce').fillna(-1).astype(int)
         movie_choices = movie_choices.query(conditions)
 
+    # Apply actor filter
     if args.actor:
-        movie_choices = movie_choices.query(getConditional(args.actor, "Cast"))
+        movie_choices = movie_choices.query(build_text_filter_query(args.actor, "Cast"))
 
+    # Apply writer filter
     if args.writer:
-        movie_choices = movie_choices.query(getConditional(args.writer, "Writer"))
+        movie_choices = movie_choices.query(build_text_filter_query(args.writer, "Writer"))
 
+    # Apply producer filter
     if args.producer:
-        movie_choices = movie_choices.query(getConditional(args.producer, "Producer"))
+        movie_choices = movie_choices.query(build_text_filter_query(args.producer, "Producer"))
 
+    # Apply cinematographer filter
     if args.cinematographer:
-        movie_choices = movie_choices.query(getConditional(args.cinematographer, "Cinematographer"))
+        movie_choices = movie_choices.query(build_text_filter_query(args.cinematographer, "Cinematographer"))
 
+    # Apply editor filter
     if args.editor:
-        movie_choices = movie_choices.query(getConditional(args.editor, "Editor"))
+        movie_choices = movie_choices.query(build_text_filter_query(args.editor, "Editor"))
 
+    # Apply composer filter
     if args.composer:
-        movie_choices = movie_choices.query(getConditional(args.composer, "Composer"))
+        movie_choices = movie_choices.query(build_text_filter_query(args.composer, "Composer"))
 
+    # Apply production company filter
     if args.production_company:
-        movie_choices = movie_choices.query(getConditional(args.production_company, "Production_Company"))
+        movie_choices = movie_choices.query(build_text_filter_query(args.production_company, "Production_Company"))
 
+    # Apply plot filter
     if args.plot:
-        movie_choices = movie_choices.query(getConditional(args.plot, "Plot"))
+        movie_choices = movie_choices.query(build_text_filter_query(args.plot, "Plot"))
 
+    # Filter to only movies in the pool
     movie_choices_pool = movie_choices.query('In_Pool == "Y"')
+    
     if movie_choices_pool.empty:
         print("There are no movies that fit your requirements. Please try again.")
     else:
-        movies = []
+        # Handle count argument
         if args.count:
             if re.fullmatch(r'\d+', args.count):
-                if int(args.count) <= 0:
+                count = int(args.count)
+                if count <= 0:
                     print("Either a positive integer or \"all\" must be provided for the count flag. Please try again.")
                     quit()
-                elif int(args.count) > 0 and int(args.count) > movie_choices_pool.shape[0]:
-                    print("Count number cannot be larger than the number of movies that fulfill requirements. Please try again.")
+                elif count > movie_choices_pool.shape[0]:
+                    print(f"Count ({count}) cannot be larger than available movies ({movie_choices_pool.shape[0]}). Please try again.")
                     quit()
                 else:
-                    choices = movie_choices_pool.sample(int(args.count))
+                    choices = movie_choices_pool.sample(count)
             elif args.count == 'all':
                 choices = movie_choices_pool
             else:
@@ -300,13 +418,23 @@ if args.command == "get":
         else:
             choices = movie_choices_pool.sample()
 
+        # Format and display results
+        movie_results = []
         for _, choice in choices.iterrows():
-            if args.minimal:
-                movies.append(f"Movie: {choice['Title']} ({choice['Year']})")
-            else:
-                movies.append(f"Movie: {choice['Title']} (rating: {choice['Rating']}, votes: {choice['Votes']}, rank: {choice['Rank']}) [{len(movie_choices_pool)} total]\nDirector: {choice['Director']}\nYear: {choice['Year']}\nRuntime: {getRuntime(choice['Runtime'])}\nGenre: {choice['Genre']}\nStarring: {starring(choice['Cast'])}\nLanguage: {choice['Language']}\nPlot: {choice['Plot']}\nID: {choice['ID']}")
+            movie_results.append(format_movie_output(choice, minimal=args.minimal, pool_size=len(movie_choices_pool)))
         
-        print("\033[34m-------------------------\033[0m\n" + "\n\033[31m-------------------------\033[0m\n".join(movies) + "\n\033[34m-------------------------\033[0m")
+        # Print header
+        result_count = len(movie_results)
+        if result_count == 1:
+            header = "Found 1 movie matching your criteria"
+        else:
+            header = f"Found {result_count} movies matching your criteria"
+        
+        print(f"\n\033[1;36m{'═' * 80}\033[0m")
+        print(f"\033[1;36m  {header}\033[0m")
+        print(f"\033[1;36m{'═' * 80}\033[0m")
+        print("\n".join(movie_results))
+        print(f"\n\033[90m{'─' * 80}\033[0m\n")
 
 elif args.command == "remove":
     if args.movie_id in movies["ID"].values:
@@ -328,16 +456,15 @@ elif args.command == "list":
     removed_movies = movies.query('In_Pool == "N"')
     if not removed_movies.empty:
         removed_movies = removed_movies.sort_values(by="Date", ascending=True)
-    list = []
-
-    if not removed_movies.empty:
+        removed_list = []
         for _, row in removed_movies.iterrows():
             movie = row['Title']
             year = row['Year']
             date = row['Date']
-            list.append(f"{movie} ({year}) | {date}")
-        print("\n".join(list))
+            removed_list.append(f"{movie} ({year}) | {date}")
+        print("\n".join(removed_list))
     else:
         print("There are no movies in the list.")
+        
 else:
     parser.print_help()

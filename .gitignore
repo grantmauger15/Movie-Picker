@@ -1,0 +1,14 @@
+# Build folders
+build/
+dist/
+
+# Virtual environment
+.venv/
+venv/
+
+# PyInstaller
+*.spec
+
+# Executable
+*.exe
+
