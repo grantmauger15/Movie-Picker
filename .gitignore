@@ -12,3 +12,5 @@ venv/
 # Executable
 *.exe
 
+# CSV
+movies.csv
